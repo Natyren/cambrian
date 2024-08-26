@@ -3,15 +3,15 @@
 export PJRT_DEVICE=TPU &&
 export XLA_USE_BF16=0 &&
 export WANDB_RESUME="allow" &&
-export CKPT_NAME="cambrian-8b-pretrain" &&
+export CKPT_NAME="amalgam-8b-pretrain-558k" &&
 
-export CKPT_DIR="gs://us-central2-storage/cambrian/checkpoints/$CKPT_NAME" &&
+export CKPT_DIR="/data/checkpoints/$CKPT_NAME" &&
 
 python cambrian/train/train_tpu.py \
-    --model_name_or_path your_path_to_llama3 \
-    --version llama_v3 \
-    --data_path your_path_to_pretrain_jsonl e.g. alignment_2.5m.jsonl \
-    --image_folder your_path_to_image_folder \
+    --model_name_or_path Vikhrmodels/Vikhr-7B-instruct_0.4 \
+    --version v0 \
+    --use_dataset True \
+    --data_path "lmms-lab/LLaVA-ReCap-558K" \
     --vision_tower_aux_list '["siglip/CLIP-ViT-SO400M-14-384", "openai/clip-vit-large-patch14-336", "facebook/dinov2-giant-res378", "clip-convnext-XXL-multi-stage"]' \
     --vision_tower_aux_token_len_list '[576, 576, 576, 9216]' \
     --image_token_len 576 \
@@ -57,7 +57,7 @@ python cambrian/train/train_tpu.py \
     --fsdp_config fsdp_config.json
 
 
-CKPT_PATH=checkpoints/$CKPT_NAME
+CKPT_PATH=/data/checkpoints/$CKPT_NAME
 # check if the checkpoint path exists
 if [ ! -d "$CKPT_PATH" ]; then
     echo "Checkpoint path does not exist. Exiting..."
