@@ -1064,16 +1064,16 @@ class LazySupervisedDataset(Dataset):
         else:
             with open(self.data_path, "r") as file:
                 for line in file:
-                sample = json.loads(line.strip())
-                img_tokens = (
-                    self.data_args.image_token_len if self._has_image(sample) else 0
-                )
-                cur_len = sum(
-                    len(conv["value"].split()) for conv in sample["conversations"]
-                )
-                self.length_list.append(cur_len + img_tokens)
-                modality_len = cur_len if "image" in sample else -cur_len
-                self.modality_length_list.append(modality_len)
+                    sample = json.loads(line.strip())
+                    img_tokens = (
+                        self.data_args.image_token_len if self._has_image(sample) else 0
+                    )
+                    cur_len = sum(
+                        len(conv["value"].split()) for conv in sample["conversations"]
+                    )
+                    self.length_list.append(cur_len + img_tokens)
+                    modality_len = cur_len if "image" in sample else -cur_len
+                    self.modality_length_list.append(modality_len)
         return self.length_list, self.modality_length_list
 
     @property
