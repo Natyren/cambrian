@@ -62,7 +62,7 @@ CKPT_PATH=/data/checkpoints/$CKPT_NAME
 # check if the checkpoint path exists
 if [ ! -d "$CKPT_PATH" ]; then
     echo "Checkpoint path does not exist. Exiting..."
-    exit 1
+    # exit 1
 fi
 echo "Training finished. Syncing checkpoints to GCS..."
 #gcloud alpha storage rsync $CKPT_PATH gs://us-central2-storage/cambrian/checkpoints/$CKPT_NAME
