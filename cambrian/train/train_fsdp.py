@@ -1035,7 +1035,7 @@ class LazySupervisedDataset(Dataset):
         else:
             with open(self.data_path, "r") as file:
                 for i, _ in enumerate(file):
-                pass
+                    pass
         return i + 1
 
     def __len__(self):
