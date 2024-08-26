@@ -1097,13 +1097,13 @@ class LazySupervisedDataset(Dataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         # sources = self.list_data_dict[i]
         if self.use_dataset:
-            sample = self.dataset[i]
+            sources = self.dataset[i]
         else:
             with open(self.data_path, "r") as file:
                 for idx, line in enumerate(file):
-                if idx == i:
-                    sources = json.loads(line.strip())
-                    break
+                    if idx == i:
+                        sources = json.loads(line.strip())
+                        break
         dat = sources
         if isinstance(i, int):
             sources = [sources]
