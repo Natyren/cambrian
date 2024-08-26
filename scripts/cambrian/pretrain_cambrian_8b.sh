@@ -2,6 +2,7 @@
 
 export PJRT_DEVICE=TPU &&
 export XLA_USE_BF16=0 &&
+export HF_DATASETS_CACHE="/data/hf_datasets" &&
 export WANDB_RESUME="allow" &&
 export CKPT_NAME="amalgam-8b-pretrain-558k" &&
 
