@@ -35,7 +35,7 @@ import transformers
 import tokenizers
 
 import cambrian
-
+from datasets import load_dataset
 from cambrian.constants import (
     IGNORE_INDEX,
     IMAGE_TOKEN_INDEX,
