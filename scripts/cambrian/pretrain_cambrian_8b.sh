@@ -58,7 +58,7 @@ python cambrian/train/train_tpu.py \
     --fsdp_config fsdp_config.json
 
 
-CKPT_PATH=/data/checkpoints/$CKPT_NAME
+CKPT_PATH=/mnt/data/checkpoints/$CKPT_NAME
 # check if the checkpoint path exists
 if [ ! -d "$CKPT_PATH" ]; then
     echo "Checkpoint path does not exist. Exiting..."
