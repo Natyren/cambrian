@@ -1021,6 +1021,7 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
 
         self.tokenizer = tokenizer
+        self.use_dataset = use_dataset
         if use_dataset:
             self.dataset = load_dataset(data_path, streaming=True)
         else:
