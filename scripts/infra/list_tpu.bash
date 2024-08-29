@@ -2,8 +2,8 @@
 
 # Command to list TPU resources
 output=$(gcloud alpha compute tpus queued-resources list \
-  --project nyu-vision-lab \
-  --zone us-central2-b)
+  --project pixelagent-425317  \
+  --zone europe-west4-a)
 
 echo "$output"
 echo ""  # Add a blank line for readability
