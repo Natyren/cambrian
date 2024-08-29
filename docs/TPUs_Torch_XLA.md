@@ -11,8 +11,8 @@
 #### Use parameters:
 
 ```bash
-PROJECT=nyu-vision-lab
-ZONE=us-central2-b
+PROJECT=pixelagent-425317
+ZONE=europe-west4-a
 ```
 
 
@@ -26,9 +26,9 @@ ZONE=us-central2-b
 
 ```bash
 # set session variables
-TPU_NAME="my-tpu-name"
-TPU_TYPE=v4-8  # v4-64, v4-128, v4-256 …
-PD_NAME=ellis-pd-mllm-1
+TPU_NAME="amalgam-node-v3-32"
+TPU_TYPE=v3-32  # v4-64, v4-128, v4-256 …
+#PD_NAME=ellis-pd-mllm-1
 ```
 
 ```bash
@@ -70,14 +70,14 @@ gcloud compute disks delete $PD_NAME --zone=us-central2-b
 # attach pd
 gcloud alpha compute tpus tpu-vm attach-disk $TPU_NAME \
   --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --project=pixelagent-425317 \
   --disk=$PD_NAME \
   --mode=read-only
 
 # mount
 gcloud compute tpus tpu-vm ssh $TPU_NAME \
   --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --project=pixelagent-425317 \
   --worker=all \
   --command="sudo mkdir -p /mnt/disks/storage && sudo mount -o ro,noload /dev/sdb /mnt/disks/storage"
 ```
@@ -89,18 +89,18 @@ gcloud compute tpus tpu-vm ssh $TPU_NAME \
 #### Add SSH Key to All Workers
 
 ```bash
-SSH_KEY=my-ssh-key
+SSH_KEY=google_compute_engine
 
 # copy key
 gcloud compute tpus tpu-vm scp ~/.ssh/$SSH_KEY $TPU_NAME:~/.ssh/$SSH_KEY \
-  --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --zone=europe-west4-a \
+  --project=pixelagent-425317 \
   --worker=all
 
 # add ssh key & pre-auth with github to avoid phantom error
 gcloud compute tpus tpu-vm ssh $TPU_NAME \
-  --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --zone=europe-west4-a \
+  --project=pixelagent-425317 \
   --worker=all \
   --command="chmod 600 ~/.ssh/$SSH_KEY && ssh-add ~/.ssh/$SSH_KEY && ssh -o StrictHostKeyChecking=no git@github.com"
 ```
@@ -112,10 +112,10 @@ gcloud compute tpus tpu-vm ssh $TPU_NAME \
 ```bash
 # clone
 gcloud compute tpus tpu-vm ssh $TPU_NAME \
-  --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --zone=europe-west4-a \
+  --project=pixelagent-425317 \
   --worker=all \
-  --command="git clone git@github.com:cambrian-mllm/cambrian.git"
+  --command="git clone https://github.com/Natyren/cambrian.git"
 ```
 
 
@@ -125,8 +125,8 @@ gcloud compute tpus tpu-vm ssh $TPU_NAME \
 ```bash
 BRANCH=main
 gcloud compute tpus tpu-vm ssh $TPU_NAME \
-  --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --zone=europe-west4-a \
+  --project=pixelagent-425317 \
   --worker=all \
   --command="cd ~/cambrian && git fetch --all && git checkout $BRANCH && git pull && pip install --upgrade pip setuptools && pip install -e . && pip install -e .[tpu] && pip install torch~=2.2.0 torch_xla[tpu]~=2.2.0 -f https://storage.googleapis.com/libtpu-releases/index.html && sudo snap refresh google-cloud-cli"
 ```
@@ -142,8 +142,8 @@ gcloud compute tpus tpu-vm ssh $TPU_NAME \
 
 ```bash
 gcloud compute tpus tpu-vm ssh $TPU_NAME \
-  --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --zone=europe-west4-a \
+  --project=pixelagent-425317 \
   --worker=all \
   --command="tmux new-session -d -s projectx"
 ```
@@ -153,14 +153,14 @@ gcloud compute tpus tpu-vm ssh $TPU_NAME \
 #### Run Script inside `tmux` session
 
 ```bash
-SCRIPT=scripts/finetune_fsdp.sh
+SCRIPT=scripts/cambrian/pretrain_cambrian_8b.sh
 BRANCH=main
-WANDB_KEY=<>
+WANDB_KEY=4e4fb67e090e34e49cece8ec44aed769c1d7bd93
 gcloud compute tpus tpu-vm ssh $TPU_NAME \
-  --zone=us-central2-b \
-  --project=nyu-vision-lab \
+  --zone=europe-west4-a \
+  --project=pixelagent-425317 \
   --worker=all \
-  --command="cd ~/cambrian && git checkout $BRANCH && git pull && tmux send-keys -t projectx 'cd ~/cambrian && export WANDB_API_KEY='$WANDB_KEY' && export WANDB_ENTITY=nyu-visionx && export WANDB_PROJECT=cambrian && bash $SCRIPT' C-m"
+  --command="cd ~/cambrian && tmux send-keys -t projectx 'cd ~/cambrian && export WANDB_API_KEY='$WANDB_KEY' && export WANDB_ENTITY=georgebredis && export WANDB_PROJECT=amalgam && bash $SCRIPT' C-m"
 ```
 
 
