@@ -2,18 +2,18 @@
 
 export PJRT_DEVICE=TPU &&
 export XLA_USE_BF16=0 &&
-export HF_DATASETS_CACHE="/data/hf_datasets" &&
+export HF_DATASETS_CACHE="/mnt/data//hf_datasets" &&
 export WANDB_RESUME="allow" &&
 export CKPT_NAME="amalgam-8b-pretrain-558k" &&
 
-export CKPT_DIR="/data/checkpoints/$CKPT_NAME" &&
+export CKPT_DIR="/mnt/data/checkpoints/$CKPT_NAME" &&
 
 python cambrian/train/train_tpu.py \
     --model_name_or_path Vikhrmodels/Vikhr-7B-instruct_0.4 \
     --version v0 \
     --use_dataset True \
     --data_path "lmms-lab/LLaVA-ReCap-558K" \
-    --vision_tower_aux_list '["siglip/CLIP-ViT-SO400M-14-384", "openai/clip-vit-large-patch14-336", "facebook/dinov2-giant-res378", "clip-convnext-XXL-multi-stage"]' \
+    --vision_tower_aux_list '["siglip/CLIP-ViT-SO400M-14-384"]' \
     --vision_tower_aux_token_len_list '[576, 576, 576, 9216]' \
     --image_token_len 576 \
     --num_query_group 1 \
