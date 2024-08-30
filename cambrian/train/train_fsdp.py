@@ -1023,7 +1023,7 @@ class LazySupervisedDataset(Dataset):
         self.tokenizer = tokenizer
         self.use_dataset = use_dataset
         if self.use_dataset:
-            self.dataset = load_dataset(data_path, streaming=True)
+            self.dataset = load_dataset(data_path)
         else:
             self.data_path = data_path
         self.data_args = data_args
