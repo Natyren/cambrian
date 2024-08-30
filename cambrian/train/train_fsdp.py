@@ -1114,6 +1114,7 @@ class LazySupervisedDataset(Dataset):
             image_file = dat["image"]
             if self.use_dataset:
                 image = image_file
+                processor_aux_list = self.data_args.image_processor_aux_list
             else:
                 image_folder = self.data_args.image_folder
                 processor_aux_list = self.data_args.image_processor_aux_list
