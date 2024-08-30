@@ -1022,7 +1022,7 @@ class LazySupervisedDataset(Dataset):
 
         self.tokenizer = tokenizer
         self.use_dataset = use_dataset
-        if use_dataset:
+        if self.use_dataset:
             self.dataset = load_dataset(data_path, streaming=True)
         else:
             self.data_path = data_path
@@ -1557,7 +1557,10 @@ def make_supervised_data_module(
 ) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(
-        tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args
+        tokenizer=tokenizer,
+        data_path=data_args.data_path,
+        data_args=data_args,
+        use_dataset=data_args.use_dataset,
     )
     data_collator_kwargs = {
         "tokenizer": tokenizer,
