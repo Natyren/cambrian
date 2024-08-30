@@ -20,40 +20,50 @@ from transformers.trainer import (
     has_length,
     ALL_LAYERNORM_LAYERS,
     logger,
-    is_torch_tpu_available
+    is_torch_tpu_available,
 )
 
 from ezcolorlog import root_logger as logger
 from cambrian.utils import IS_XLA_AVAILABLE
 
 from packaging import version
+
 if is_sagemaker_mp_enabled():
     import smdistributed.modelparallel.torch as smp
     from smdistributed.modelparallel import __version__ as SMP_VERSION
 
     IS_SAGEMAKER_MP_POST_1_10 = version.parse(SMP_VERSION) >= version.parse("1.10")
 
-    from transformers.trainer_pt_utils import smp_forward_backward, smp_forward_only, smp_gather, smp_nested_concat
+    from transformers.trainer_pt_utils import (
+        smp_forward_backward,
+        smp_forward_only,
+        smp_gather,
+        smp_nested_concat,
+    )
 from typing import List, Optional
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 from transformers.utils import is_apex_available
+
 if is_apex_available():
     from apex import amp
 
 import random
-fs = gcsfs.GCSFileSystem(project='nyu-vision-lab')
+
+fs = gcsfs.GCSFileSystem(project="nyu-vision-lab")
 
 HOME_DIR = os.path.expanduser("~") + "/"
 print("HOME_DIR = ", HOME_DIR)
 
+
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
     from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
+
     if hasattr(param, "ds_id"):
         if param.ds_status == ZeroParamStatus.NOT_AVAILABLE:
             if not ignore_status:
-                print(name, 'no ignore status')
+                print(name, "no ignore status")
         with zero.GatheredParameters([param]):
             param = param.data.detach().cpu().clone()
     else:
@@ -62,8 +72,15 @@ def maybe_zero_3(param, ignore_status=False, name=None):
 
 
 def get_mm_adapter_state_maybe_zero_3(named_params, keys_to_match):
-    to_return = {k: t for k, t in named_params if any(key_match in k for key_match in keys_to_match)}
-    to_return = {k: maybe_zero_3(v, ignore_status=True, name=k).cpu() for k, v in to_return.items()}
+    to_return = {
+        k: t
+        for k, t in named_params
+        if any(key_match in k for key_match in keys_to_match)
+    }
+    to_return = {
+        k: maybe_zero_3(v, ignore_status=True, name=k).cpu()
+        for k, v in to_return.items()
+    }
     return to_return
 
 
@@ -89,20 +106,40 @@ def split_to_even_chunks(indices, lengths, num_chunks):
     return chunks
 
 
-def get_modality_length_grouped_indices(lengths, batch_size, world_size, generator=None):
+def get_modality_length_grouped_indices(
+    lengths, batch_size, world_size, generator=None
+):
     # We need to use torch for the random part as a distributed sampler will set the random seed for torch.
     assert all(l != 0 for l in lengths), "Should not have zero length."
     if all(l > 0 for l in lengths) or all(l < 0 for l in lengths):
         # all samples are in the same modality
-        return get_length_grouped_indices(lengths, batch_size, world_size, generator=generator)
+        return get_length_grouped_indices(
+            lengths, batch_size, world_size, generator=generator
+        )
     mm_indices, mm_lengths = zip(*[(i, l) for i, l in enumerate(lengths) if l > 0])
     lang_indices, lang_lengths = zip(*[(i, -l) for i, l in enumerate(lengths) if l < 0])
 
-    mm_shuffle = [mm_indices[i] for i in get_length_grouped_indices(mm_lengths, batch_size, world_size, generator=None)]
-    lang_shuffle = [lang_indices[i] for i in get_length_grouped_indices(lang_lengths, batch_size, world_size, generator=None)]
+    mm_shuffle = [
+        mm_indices[i]
+        for i in get_length_grouped_indices(
+            mm_lengths, batch_size, world_size, generator=None
+        )
+    ]
+    lang_shuffle = [
+        lang_indices[i]
+        for i in get_length_grouped_indices(
+            lang_lengths, batch_size, world_size, generator=None
+        )
+    ]
     megabatch_size = world_size * batch_size
-    mm_megabatches = [mm_shuffle[i : i + megabatch_size] for i in range(0, len(mm_shuffle), megabatch_size)]
-    lang_megabatches = [lang_shuffle[i : i + megabatch_size] for i in range(0, len(lang_shuffle), megabatch_size)]
+    mm_megabatches = [
+        mm_shuffle[i : i + megabatch_size]
+        for i in range(0, len(mm_shuffle), megabatch_size)
+    ]
+    lang_megabatches = [
+        lang_shuffle[i : i + megabatch_size]
+        for i in range(0, len(lang_shuffle), megabatch_size)
+    ]
 
     last_mm = mm_megabatches[-1]
     last_lang = lang_megabatches[-1]
@@ -117,13 +154,24 @@ def get_modality_length_grouped_indices(lengths, batch_size, world_size, generat
     return [i for megabatch in megabatches for i in megabatch]
 
 
-def get_length_grouped_indices(lengths, batch_size, world_size, generator=None, merge=True):
+def get_length_grouped_indices(
+    lengths, batch_size, world_size, generator=None, merge=True
+):
     # We need to use torch for the random part as a distributed sampler will set the random seed for torch.
     indices = torch.randperm(len(lengths), generator=generator)
     megabatch_size = world_size * batch_size
-    megabatches = [indices[i : i + megabatch_size].tolist() for i in range(0, len(lengths), megabatch_size)]
-    megabatches = [sorted(megabatch, key=lambda i: lengths[i], reverse=True) for megabatch in megabatches]
-    megabatches = [split_to_even_chunks(megabatch, lengths, world_size) for megabatch in megabatches]
+    megabatches = [
+        indices[i : i + megabatch_size].tolist()
+        for i in range(0, len(lengths), megabatch_size)
+    ]
+    megabatches = [
+        sorted(megabatch, key=lambda i: lengths[i], reverse=True)
+        for megabatch in megabatches
+    ]
+    megabatches = [
+        split_to_even_chunks(megabatch, lengths, world_size)
+        for megabatch in megabatches
+    ]
 
     return [i for megabatch in megabatches for batch in megabatch for i in batch]
 
@@ -156,9 +204,13 @@ class LengthGroupedSampler(Sampler):
 
     def __iter__(self):
         if self.group_by_modality:
-            indices = get_modality_length_grouped_indices(self.lengths, self.batch_size, self.world_size, generator=self.generator)
+            indices = get_modality_length_grouped_indices(
+                self.lengths, self.batch_size, self.world_size, generator=self.generator
+            )
         else:
-            indices = get_length_grouped_indices(self.lengths, self.batch_size, self.world_size, generator=self.generator)
+            indices = get_length_grouped_indices(
+                self.lengths, self.batch_size, self.world_size, generator=self.generator
+            )
         return iter(indices)
 
 
@@ -166,19 +218,32 @@ def _fetch_gradients(optimizer, param_to_name, selected_module_names):
     gradients = []
     for param_group in optimizer.param_groups:
         for group, params in param_group.items():
-            if group == 'params':
+            if group == "params":
                 for p in params:
                     # Use the mapping to get the module name
                     module_name = param_to_name.get(p, "")
                     # Check if the module name matches your criteria
-                    if isinstance(p, torch.Tensor) and p.grad is not None and any(selected_name in module_name for selected_name in selected_module_names):
+                    if (
+                        isinstance(p, torch.Tensor)
+                        and p.grad is not None
+                        and any(
+                            selected_name in module_name
+                            for selected_name in selected_module_names
+                        )
+                    ):
                         p.grad = p.grad.to(torch.float32)
                         gradients.append(p.grad.data)
     return gradients
 
+
 from torch_xla.core.xla_model import xrt_world_size, all_reduce
-REDUCE_SUM = 'sum'
-def reduce_gradients(optimizer, param_to_name, selected_module_names, groups=None, pin_layout=True):
+
+REDUCE_SUM = "sum"
+
+
+def reduce_gradients(
+    optimizer, param_to_name, selected_module_names, groups=None, pin_layout=True
+):
     count = xrt_world_size()
     if count > 1:
         gradients = _fetch_gradients(optimizer, param_to_name, selected_module_names)
@@ -187,7 +252,9 @@ def reduce_gradients(optimizer, param_to_name, selected_module_names, groups=Non
             gradients,
             scale=1.0 / count,
             groups=groups,
-            pin_layout=pin_layout)
+            pin_layout=pin_layout,
+        )
+
 
 def map_params_to_module_names(model_list):
     param_to_name = {}
@@ -215,12 +282,16 @@ class CambrianTrainer(Trainer):
         else:
             return super()._get_train_sampler()
 
-    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+    def training_step(
+        self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]
+    ) -> torch.Tensor:
         model.train()
         inputs = self._prepare_inputs(inputs)
 
         if is_sagemaker_mp_enabled():
-            loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps)
+            loss_mb = smp_forward_backward(
+                model, inputs, self.args.gradient_accumulation_steps
+            )
             return loss_mb.reduce_mean().detach().to(self.args.device)
 
         with self.compute_loss_context_manager():
@@ -234,7 +305,7 @@ class CambrianTrainer(Trainer):
                 scaled_loss.backward()
         else:
             self.accelerator.backward(loss)
-        selected_module_names = ['vision_tower']
+        selected_module_names = ["vision_tower"]
         # if self.args.unfreeze_mm_vision_tower:
         #     reduce_gradients(self.optimizer, self.param_to_name, selected_module_names)
         return loss.detach() / self.args.gradient_accumulation_steps
@@ -257,90 +328,177 @@ class CambrianTrainer(Trainer):
             decay_parameters = [name for name in decay_parameters if "bias" not in name]
             assert not (self.args.mm_projector_lr and self.args.mm_vision_sampler_lr)
             if self.args.mm_projector_lr is not None:
-                projector_parameters = [name for name, _ in opt_model.named_parameters() if "mm_projector" in name]
+                projector_parameters = [
+                    name
+                    for name, _ in opt_model.named_parameters()
+                    if "mm_projector" in name
+                ]
                 optimizer_grouped_parameters = [
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n in decay_parameters
+                                and n not in projector_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": self.args.weight_decay,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n not in decay_parameters
+                                and n not in projector_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": 0.0,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n in decay_parameters
+                                and n in projector_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": self.args.weight_decay,
                         "lr": self.args.mm_projector_lr,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n not in decay_parameters
+                                and n in projector_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": 0.0,
                         "lr": self.args.mm_projector_lr,
                     },
                 ]
             elif self.args.mm_vision_sampler_lr is not None:
-                vision_sampler_parameters = [name for name, _ in opt_model.named_parameters() if ("vision_sampler" in name) or ("vision_query" in name) ]
+                vision_sampler_parameters = [
+                    name
+                    for name, _ in opt_model.named_parameters()
+                    if ("vision_sampler" in name) or ("vision_query" in name)
+                ]
                 optimizer_grouped_parameters = [
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in vision_sampler_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n in decay_parameters
+                                and n not in vision_sampler_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": self.args.weight_decay,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in vision_sampler_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n not in decay_parameters
+                                and n not in vision_sampler_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": 0.0,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in vision_sampler_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n in decay_parameters
+                                and n in vision_sampler_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": self.args.weight_decay,
                         "lr": self.args.mm_vision_sampler_lr,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in vision_sampler_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n not in decay_parameters
+                                and n in vision_sampler_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": 0.0,
                         "lr": self.args.mm_vision_sampler_lr,
                     },
                 ]
-            elif self.args.unfreeze_mm_vision_tower and self.args.mm_vision_tower_lr is not None:
-                vision_tower_parameters = [name for name, _ in opt_model.named_parameters() if "vision_tower" in name]
+            elif (
+                self.args.unfreeze_mm_vision_tower
+                and self.args.mm_vision_tower_lr is not None
+            ):
+                vision_tower_parameters = [
+                    name
+                    for name, _ in opt_model.named_parameters()
+                    if "vision_tower" in name
+                ]
                 optimizer_grouped_parameters = [
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in vision_tower_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n in decay_parameters
+                                and n not in vision_tower_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": self.args.weight_decay,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in vision_tower_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n not in decay_parameters
+                                and n not in vision_tower_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": 0.0,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in vision_tower_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n in decay_parameters
+                                and n in vision_tower_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": self.args.weight_decay,
                         "lr": self.args.mm_vision_tower_lr,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in vision_tower_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (
+                                n not in decay_parameters
+                                and n in vision_tower_parameters
+                                and p.requires_grad
+                            )
                         ],
                         "weight_decay": 0.0,
                         "lr": self.args.mm_vision_tower_lr,
@@ -350,21 +508,29 @@ class CambrianTrainer(Trainer):
                 optimizer_grouped_parameters = [
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and p.requires_grad)
                         ],
                         "weight_decay": self.args.weight_decay,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and p.requires_grad)
                         ],
                         "weight_decay": 0.0,
                     },
                 ]
 
-            optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
+            optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(
+                self.args
+            )
 
-            self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+            self.optimizer = optimizer_cls(
+                optimizer_grouped_parameters, **optimizer_kwargs
+            )
             if optimizer_cls.__name__ == "Adam8bit":
                 import bitsandbytes
 
@@ -373,26 +539,31 @@ class CambrianTrainer(Trainer):
                 skipped = 0
                 for module in opt_model.modules():
                     if isinstance(module, nn.Embedding):
-                        skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
+                        skipped += sum(
+                            {
+                                p.data_ptr(): p.numel() for p in module.parameters()
+                            }.values()
+                        )
                         logger.info(f"skipped {module}: {skipped/2**20}M params")
-                        manager.register_module_override(module, "weight", {"optim_bits": 32})
+                        manager.register_module_override(
+                            module, "weight", {"optim_bits": 32}
+                        )
                         logger.debug(f"bitsandbytes: will optimize {module} in fp32")
                 logger.info(f"skipped: {skipped/2**20}M params")
         return self.optimizer
-    
 
-    def remove_prefix(text, prefix='gs://us-central2-storage/'):
+    def remove_prefix(text, prefix="gs://us-central2-storage/"):
         if prefix in text:
-            return text.replace(prefix, '')
+            return text.replace(prefix, "")
         return text
-    
+
     def _load_rng_state(self, resume_from_checkpoint):
         if resume_from_checkpoint is None:
             return
 
         # remove local path prefic if exists
         if HOME_DIR in resume_from_checkpoint:
-            resume_from_checkpoint_clean = resume_from_checkpoint.replace(HOME_DIR, '')
+            resume_from_checkpoint_clean = resume_from_checkpoint.replace(HOME_DIR, "")
         else:
             resume_from_checkpoint_clean = resume_from_checkpoint
 
@@ -401,12 +572,12 @@ class CambrianTrainer(Trainer):
         world_size = xm.xrt_world_size()
 
         # get path
-        RNG_NAME = f'rng_rank-{rank:08d}-of-{world_size:08d}-rng.pth'
+        RNG_NAME = f"rng_rank-{rank:08d}-of-{world_size:08d}-rng.pth"
         RNG_PATH = os.path.join(resume_from_checkpoint_clean, RNG_NAME)
 
         # Loading the model weights:
         client = storage.Client()
-        bucket = client.get_bucket('us-central2-storage')
+        bucket = client.get_bucket("us-central2-storage")
         blob = bucket.blob(RNG_PATH)
         blob_bytes = blob.download_as_bytes()
         buffer = io.BytesIO(blob_bytes)
@@ -425,7 +596,7 @@ class CambrianTrainer(Trainer):
 
         # remove local path prefix
         if HOME_DIR in resume_from_checkpoint:
-            resume_from_checkpoint_clean = resume_from_checkpoint.replace(HOME_DIR, '')
+            resume_from_checkpoint_clean = resume_from_checkpoint.replace(HOME_DIR, "")
         else:
             resume_from_checkpoint_clean = resume_from_checkpoint
 
@@ -436,20 +607,20 @@ class CambrianTrainer(Trainer):
         # get path to file
         WEIGHTS_NAME = "pytorch_model.bin"
         SCHEDULER_NAME = "scheduler.pt"
-        SHARD_NAME_OPT = f'opt_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}'
+        SHARD_NAME_OPT = f"opt_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}"
         SHARD_NAME_PATH = os.path.join(resume_from_checkpoint_clean, SHARD_NAME_OPT)
         LR_PATH = os.path.join(resume_from_checkpoint_clean, SCHEDULER_NAME)
 
         # connect to gcloud bucket
         client = storage.Client()
-        bucket = client.get_bucket('us-central2-storage')
+        bucket = client.get_bucket("us-central2-storage")
 
         # Loading opt state to each device
         blob = bucket.blob(SHARD_NAME_PATH)
         blob_bytes = blob.download_as_bytes()
         buffer = io.BytesIO(blob_bytes)
         optimizer_state = torch.load(buffer, map_location="cpu")
-        optimizer_state = optimizer_state['optimizer_state']
+        optimizer_state = optimizer_state["optimizer_state"]
 
         # Loading the schedule to each device
         blob_lr = bucket.blob(LR_PATH)
@@ -465,7 +636,9 @@ class CambrianTrainer(Trainer):
         self.optimizer.load_state_dict(optimizer_state)
         self.lr_scheduler.load_state_dict(lr_scheduler_state)
 
-        logger.info(f"Optimizer state and scheduler successfully loaded from {SHARD_NAME_PATH}")
+        logger.info(
+            f"Optimizer state and scheduler successfully loaded from {SHARD_NAME_PATH}"
+        )
         print("Loaded optimizer state successfully")
 
     def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
@@ -475,7 +648,7 @@ class CambrianTrainer(Trainer):
 
         # Remove local path (we stored Train State here)
         if HOME_DIR in resume_from_checkpoint:
-            resume_from_checkpoint_clean = resume_from_checkpoint.replace(HOME_DIR, '')
+            resume_from_checkpoint_clean = resume_from_checkpoint.replace(HOME_DIR, "")
         else:
             resume_from_checkpoint_clean = resume_from_checkpoint
 
@@ -485,13 +658,12 @@ class CambrianTrainer(Trainer):
 
         # Getting path to file on bucket
         WEIGHTS_NAME = "pytorch_model.bin"
-        SHARD_NAME = f'weights_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}'
+        SHARD_NAME = f"weights_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}"
         SHARD_NAME_PATH = os.path.join(resume_from_checkpoint_clean, SHARD_NAME)
-
 
         # Loading the model weights:
         client = storage.Client()
-        bucket = client.get_bucket('us-central2-storage')
+        bucket = client.get_bucket("us-central2-storage")
         blob = bucket.blob(SHARD_NAME_PATH)
         blob_bytes = blob.download_as_bytes()
         buffer = io.BytesIO(blob_bytes)
@@ -519,13 +691,14 @@ class CambrianTrainer(Trainer):
 
         model = self.model
         import torch_xla.core.xla_model as xm
+
         rank = xm.get_ordinal()
         world_size = xm.xrt_world_size()
 
         # Name of files to save
-        SHARD_NAME = f'weights_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}'
-        SHARD_NAME_OPT = f'opt_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}'
-        RNG_NAME = f'rng_rank-{rank:08d}-of-{world_size:08d}-rng.pth'
+        SHARD_NAME = f"weights_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}"
+        SHARD_NAME_OPT = f"opt_rank-{rank:08d}-of-{world_size:08d}-{WEIGHTS_NAME}"
+        RNG_NAME = f"rng_rank-{rank:08d}-of-{world_size:08d}-rng.pth"
 
         # Path of files to save
         SHARD_NAME_PATH = os.path.join(output_dir, SHARD_NAME)
@@ -538,29 +711,32 @@ class CambrianTrainer(Trainer):
 
         # Final form of model and opt
         ckpt = {
-            'model': self.model.state_dict(),
-            'shard_metadata': self.model.get_shard_metadata()
+            "model": self.model.state_dict(),
+            "shard_metadata": self.model.get_shard_metadata(),
         }
         opt_ckpt = {
-            'optimizer_state' : self.optimizer.state_dict(),
-            'shard_metadata': self.model.get_shard_metadata()
+            "optimizer_state": self.optimizer.state_dict(),
+            "shard_metadata": self.model.get_shard_metadata(),
         }
 
         # Saving model shards
-        with fs.open(SHARD_NAME_PATH, 'wb') as f:
+        with fs.open(SHARD_NAME_PATH, "wb") as f:
             xm.save(ckpt, f, master_only=False)
 
         # Saving optimizer shards
-        with fs.open(SHARD_NAME_OPT_PATH, 'wb') as f:
+        with fs.open(SHARD_NAME_OPT_PATH, "wb") as f:
             xm.save(opt_ckpt, f, master_only=False)
 
         # saving lr scheduler and train state json
         if xm.is_master_ordinal(local=False):
-            with fs.open(LR_PATH, 'wb') as f:
+            with fs.open(LR_PATH, "wb") as f:
                 xm.save(lr_scheduler_state_dict, f, master_only=True)
 
-            json_string = json.dumps(dataclasses.asdict(self.state), indent=2, sort_keys=True) + "\n"
-            with fs.open(TRAINER_STATE_NAME_PATH, 'w') as f:
+            json_string = (
+                json.dumps(dataclasses.asdict(self.state), indent=2, sort_keys=True)
+                + "\n"
+            )
+            with fs.open(TRAINER_STATE_NAME_PATH, "w") as f:
                 f.write(json_string)
 
         rng_states = {
@@ -569,7 +745,7 @@ class CambrianTrainer(Trainer):
             "cpu": torch.random.get_rng_state(),
         }
         rng_states["xla"] = xm.get_rng_state()
-        with fs.open(RNG_PATH, 'wb') as f:
+        with fs.open(RNG_PATH, "wb") as f:
             torch.save(rng_states, f)
 
     # def _save_checkpoint(self, model, trial, metrics=None):
@@ -598,33 +774,31 @@ class CambrianTrainer(Trainer):
         return out._loader
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
-        if getattr(self.args, 'tune_mm_mlp_adapter', False):
+        if getattr(self.args, "tune_mm_mlp_adapter", False):
             pass
         import torch_xla.core.xla_model as xm
+
         ckpt_prefix = os.path.join(output_dir, "model_ckpt")
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
         rank = xm.get_ordinal()
         print(rank)
         world_size = xm.xrt_world_size()
-        ckpt_path = f'{ckpt_prefix}_rank-{rank:08d}-of-{world_size:08d}.pth'
+        ckpt_path = f"{ckpt_prefix}_rank-{rank:08d}-of-{world_size:08d}.pth"
         state_dict = self.model.state_dict()
-        cpu_state_dict = {
-                key: value.cpu()
-                for key, value in state_dict.items()
-            }
+        cpu_state_dict = {key: value.cpu() for key, value in state_dict.items()}
         # if not xm.is_master_ordinal(local=False):
         #     cpu_state_dict = {
         #         key:value for key, value in cpu_state_dict.items() if 'vision_tower' not in key
         #     }
         del state_dict
         ckpt = {
-            'model': cpu_state_dict,
-            'shard_metadata': self.model.get_shard_metadata()
+            "model": cpu_state_dict,
+            "shard_metadata": self.model.get_shard_metadata(),
         }
         os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
         xm.save(ckpt, ckpt_path, master_only=False)
-        print(f'checkpoint saved to {ckpt_path}\n', end='')
+        print(f"checkpoint saved to {ckpt_path}\n", end="")
         if xm.is_master_ordinal(local=False):
             # consolidate_sharded_model_checkpoints(
             #     ckpt_prefix=ckpt_prefix, ckpt_suffix="_rank-*-of-*.pth", save_path = os.path.join(output_dir, "model_consolidated.pth"))
@@ -638,10 +812,16 @@ class CambrianTrainer(Trainer):
 
     """Override to add custom logs"""
 
-    def _maybe_log_save_evaluate(self, tr_loss, model, trial, epoch, ignore_keys_for_eval):
-        if self.control.should_log and self.state.global_step > self._globalstep_last_logged:
+    def _maybe_log_save_evaluate(
+        self, tr_loss, model, trial, epoch, ignore_keys_for_eval
+    ):
+        if (
+            self.control.should_log
+            and self.state.global_step > self._globalstep_last_logged
+        ):
             if is_torch_tpu_available():
                 import torch_xla.core.xla_model as xm
+
                 xm.mark_step()
 
             logs: Dict[str, float] = {}
@@ -652,12 +832,16 @@ class CambrianTrainer(Trainer):
             # reset tr_loss to zero
             tr_loss -= tr_loss
 
-            logs["loss"] = round(tr_loss_scalar / (self.state.global_step - self._globalstep_last_logged), 4)
+            logs["loss"] = round(
+                tr_loss_scalar
+                / (self.state.global_step - self._globalstep_last_logged),
+                4,
+            )
             logs["learning_rate"] = self._get_learning_rate()
 
             # Add custom logs
             if self.args.unfreeze_mm_vision_tower:
-                logs["mm_vision_tower_lr"] = self.optimizer.param_groups[2]['lr']
+                logs["mm_vision_tower_lr"] = self.optimizer.param_groups[2]["lr"]
 
             self._total_loss_scalar += tr_loss_scalar
             self._globalstep_last_logged = self.state.global_step
@@ -671,7 +855,9 @@ class CambrianTrainer(Trainer):
             self._report_to_hp_search(trial, self.state.global_step, metrics)
 
             # Run delayed LR scheduler now that metrics are populated
-            if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            if isinstance(
+                self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+            ):
                 metric_to_check = self.args.metric_for_best_model
                 if not metric_to_check.startswith("eval_"):
                     metric_to_check = f"eval_{metric_to_check}"
@@ -679,4 +865,6 @@ class CambrianTrainer(Trainer):
 
         if self.control.should_save:
             self._save_checkpoint(model, trial, metrics=metrics)
-            self.control = self.callback_handler.on_save(self.args, self.state, self.control)
+            self.control = self.callback_handler.on_save(
+                self.args, self.state, self.control
+            )
