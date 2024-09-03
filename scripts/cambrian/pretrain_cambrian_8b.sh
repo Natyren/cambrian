@@ -2,12 +2,12 @@
 
 export PJRT_DEVICE=TPU &&
 export XLA_USE_BF16=0 &&
-export HF_DATASETS_CACHE="/mnt/data/hf_datasets" &&
-export HF_HOME="/mnt/data/hf_cache" &&
+export HF_DATASETS_CACHE="/mnt/data2/hf_datasets" &&
+export HF_HOME="/mnt/data2/hf_cache" &&
 export WANDB_RESUME="allow" &&
 export CKPT_NAME="amalgam-8b-pretrain-558k" &&
 
-export CKPT_DIR="/mnt/data/checkpoints/$CKPT_NAME" &&
+export CKPT_DIR="/mnt/data2/checkpoints/$CKPT_NAME" &&
 
 python cambrian/train/train_tpu.py \
     --model_name_or_path Vikhrmodels/Vikhr-7B-instruct_0.4 \
@@ -59,7 +59,7 @@ python cambrian/train/train_tpu.py \
     --fsdp_config fsdp_config.json
 
 
-CKPT_PATH=/mnt/data/checkpoints/$CKPT_NAME
+CKPT_PATH=/mnt/data2/checkpoints/$CKPT_NAME
 # check if the checkpoint path exists
 if [ ! -d "$CKPT_PATH" ]; then
     echo "Checkpoint path does not exist. Exiting..."
