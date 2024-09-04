@@ -10,7 +10,7 @@ export CKPT_NAME="amalgam-8b-pretrain-558k" &&
 export CKPT_DIR="/mnt/data2/checkpoints/$CKPT_NAME" &&
 
 python cambrian/train/train_tpu.py \
-    --model_name_or_path Vikhrmodels/Vikhr-7B-instruct_0.4 \
+    --model_name_or_path microsoft/Phi-3-mini-128k-instruct \
     --version v0 \
     --use_dataset True \
     --data_path "lmms-lab/LLaVA-ReCap-558K" \

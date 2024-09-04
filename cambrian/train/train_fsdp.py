@@ -1166,8 +1166,8 @@ class LazySupervisedDataset(Dataset):
             data_dict = dict(
                 input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0]
             )
-        # if (data_dict["labels"] != IGNORE_INDEX).sum() == 0:
-        #     return self.__getitem__(0)
+        if (data_dict["labels"] != IGNORE_INDEX).sum() == 0:
+            return self.__getitem__(0)
         # image exist in the data
         if has_image:
             data_dict["image_aux_list"] = image_aux_list
