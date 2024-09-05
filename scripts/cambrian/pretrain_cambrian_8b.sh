@@ -13,7 +13,7 @@ python cambrian/train/train_tpu.py \
     --model_name_or_path microsoft/Phi-3-mini-4k-instruct \
     --version v0 \
     --use_dataset True \
-    --data_path "lmms-lab/LLaVA-ReCap-558K" \
+    --data_path lmms-lab/LLaVA-ReCap-558K \
     --vision_tower_aux_list '["siglip/CLIP-ViT-SO400M-14-384"]' \
     --vision_tower_aux_token_len_list '[576, 576, 576, 9216]' \
     --image_token_len 576 \

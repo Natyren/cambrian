@@ -285,30 +285,46 @@ class CambrianTrainer(Trainer):
     def training_step(
         self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]
     ) -> torch.Tensor:
+        logger.info("Starting training step")
         model.train()
+        logger.info("Model set to train mode")
         inputs = self._prepare_inputs(inputs)
+        logger.info("Inputs prepared")
 
         if is_sagemaker_mp_enabled():
+            logger.info("SageMaker MP enabled, performing forward-backward pass")
             loss_mb = smp_forward_backward(
                 model, inputs, self.args.gradient_accumulation_steps
             )
             return loss_mb.reduce_mean().detach().to(self.args.device)
 
         with self.compute_loss_context_manager():
+            logger.info("Computing loss")
             loss = self.compute_loss(model, inputs)
+        logger.info(f"Computed loss: {loss.item()}")
 
         if self.args.n_gpu > 1:
+            logger.info("Averaging loss across multiple GPUs")
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
+        logger.info(f"Loss after averaging: {loss.item()}")
 
         if self.use_apex:
+            logger.info("Using Apex for mixed precision training")
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
+            logger.info("Backward pass completed with Apex")
         else:
+            logger.info("Performing backward pass with accelerator")
             self.accelerator.backward(loss)
+            logger.info("Backward pass completed")
+
         selected_module_names = ["vision_tower"]
+        logger.info(f"Selected module names: {selected_module_names}")
         # if self.args.unfreeze_mm_vision_tower:
         #     reduce_gradients(self.optimizer, self.param_to_name, selected_module_names)
-        return loss.detach() / self.args.gradient_accumulation_steps
+        final_loss = loss.detach() / self.args.gradient_accumulation_steps
+        logger.info(f"Final loss: {final_loss.item()}")
+        return final_loss
 
     def create_optimizer(self):
         """
