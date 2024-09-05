@@ -16,7 +16,7 @@ python cambrian/train/train_tpu.py \
     --data_path lmms-lab/LLaVA-ReCap-558K \
     --vision_tower_aux_list '["siglip/CLIP-ViT-SO400M-14-384"]' \
     --vision_tower_aux_token_len_list '[576]' \
-    --image_token_len 256 \
+    --image_token_len 576 \
     --num_query_group 1 \
     --query_num_list '[576]' \
     --connector_depth 3 \
