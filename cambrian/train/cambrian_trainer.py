@@ -285,45 +285,45 @@ class CambrianTrainer(Trainer):
     def training_step(
         self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]
     ) -> torch.Tensor:
-        logger.info("Starting training step")
+        print("Starting training step")
         model.train()
-        logger.info("Model set to train mode")
+        print("Model set to train mode")
         inputs = self._prepare_inputs(inputs)
-        logger.info("Inputs prepared")
+        print("Inputs prepared")
 
         if is_sagemaker_mp_enabled():
-            logger.info("SageMaker MP enabled, performing forward-backward pass")
+            print("SageMaker MP enabled, performing forward-backward pass")
             loss_mb = smp_forward_backward(
                 model, inputs, self.args.gradient_accumulation_steps
             )
             return loss_mb.reduce_mean().detach().to(self.args.device)
 
         with self.compute_loss_context_manager():
-            logger.info("Computing loss")
+            print("Computing loss")
             loss = self.compute_loss(model, inputs)
-        logger.info(f"Computed loss: {loss.item()}")
+        print(f"Computed loss: {loss.item()}")
 
         if self.args.n_gpu > 1:
-            logger.info("Averaging loss across multiple GPUs")
+            print("Averaging loss across multiple GPUs")
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
-        logger.info(f"Loss after averaging: {loss.item()}")
+        print(f"Loss after averaging: {loss.item()}")
 
         if self.use_apex:
-            logger.info("Using Apex for mixed precision training")
+            print("Using Apex for mixed precision training")
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
-            logger.info("Backward pass completed with Apex")
+            print("Backward pass completed with Apex")
         else:
-            logger.info("Performing backward pass with accelerator")
+            print("Performing backward pass with accelerator")
             self.accelerator.backward(loss)
-            logger.info("Backward pass completed")
+            print("Backward pass completed")
 
         selected_module_names = ["vision_tower"]
-        logger.info(f"Selected module names: {selected_module_names}")
+        print(f"Selected module names: {selected_module_names}")
         # if self.args.unfreeze_mm_vision_tower:
         #     reduce_gradients(self.optimizer, self.param_to_name, selected_module_names)
         final_loss = loss.detach() / self.args.gradient_accumulation_steps
-        logger.info(f"Final loss: {final_loss.item()}")
+        print(f"Final loss: {final_loss.item()}")
         return final_loss
 
     def create_optimizer(self):
@@ -560,12 +560,12 @@ class CambrianTrainer(Trainer):
                                 p.data_ptr(): p.numel() for p in module.parameters()
                             }.values()
                         )
-                        logger.info(f"skipped {module}: {skipped/2**20}M params")
+                        print(f"skipped {module}: {skipped/2**20}M params")
                         manager.register_module_override(
                             module, "weight", {"optim_bits": 32}
                         )
                         logger.debug(f"bitsandbytes: will optimize {module} in fp32")
-                logger.info(f"skipped: {skipped/2**20}M params")
+                print(f"skipped: {skipped/2**20}M params")
         return self.optimizer
 
     def remove_prefix(text, prefix="gs://us-central2-storage/"):
@@ -652,7 +652,7 @@ class CambrianTrainer(Trainer):
         self.optimizer.load_state_dict(optimizer_state)
         self.lr_scheduler.load_state_dict(lr_scheduler_state)
 
-        logger.info(
+        print(
             f"Optimizer state and scheduler successfully loaded from {SHARD_NAME_PATH}"
         )
         print("Loaded optimizer state successfully")
@@ -703,7 +703,7 @@ class CambrianTrainer(Trainer):
         checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
         run_dir = self._get_output_dir(trial=trial)
         output_dir = os.path.join(run_dir, checkpoint_folder)
-        logger.info(f"Saving model checkpoint to {output_dir}")
+        print(f"Saving model checkpoint to {output_dir}")
 
         model = self.model
         import torch_xla.core.xla_model as xm
