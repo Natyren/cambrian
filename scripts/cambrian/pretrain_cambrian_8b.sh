@@ -5,7 +5,7 @@ export XLA_USE_BF16=0 &&
 export HF_DATASETS_CACHE="/mnt/data2/hf_datasets" &&
 export HF_HOME="/mnt/data2/hf_cache" &&
 export WANDB_RESUME="allow" &&
-export CKPT_NAME="amalgam-8b-pretrain-558k" &&
+export CKPT_NAME="amalgam-phi3-pretrain-558k" &&
 
 export CKPT_DIR="/mnt/data2/checkpoints/$CKPT_NAME" &&
 
@@ -36,7 +36,7 @@ python cambrian/train/train_tpu.py \
     --bf16 True \
     --output_dir $CKPT_DIR \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \
