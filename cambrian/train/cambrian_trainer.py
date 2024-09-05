@@ -285,45 +285,31 @@ class CambrianTrainer(Trainer):
     def training_step(
         self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]
     ) -> torch.Tensor:
-        print("Starting training step")
         model.train()
-        print("Model set to train mode")
         inputs = self._prepare_inputs(inputs)
-        print("Inputs prepared")
 
         if is_sagemaker_mp_enabled():
-            print("SageMaker MP enabled, performing forward-backward pass")
             loss_mb = smp_forward_backward(
                 model, inputs, self.args.gradient_accumulation_steps
             )
             return loss_mb.reduce_mean().detach().to(self.args.device)
 
         with self.compute_loss_context_manager():
-            print("Computing loss")
             loss = self.compute_loss(model, inputs)
-        print(f"Computed loss: {loss.item()}")
 
         if self.args.n_gpu > 1:
-            print("Averaging loss across multiple GPUs")
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
-        print(f"Loss after averaging: {loss.item()}")
 
         if self.use_apex:
-            print("Using Apex for mixed precision training")
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
-            print("Backward pass completed with Apex")
         else:
-            print("Performing backward pass with accelerator")
             self.accelerator.backward(loss)
-            print("Backward pass completed")
 
         selected_module_names = ["vision_tower"]
-        print(f"Selected module names: {selected_module_names}")
         # if self.args.unfreeze_mm_vision_tower:
         #     reduce_gradients(self.optimizer, self.param_to_name, selected_module_names)
         final_loss = loss.detach() / self.args.gradient_accumulation_steps
-        print(f"Final loss: {final_loss.item()}")
         return final_loss
 
     def create_optimizer(self):
