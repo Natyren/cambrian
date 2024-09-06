@@ -286,30 +286,32 @@ class CambrianTrainer(Trainer):
         self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]
     ) -> torch.Tensor:
         model.train()
+        print("before prepare inputs")
         inputs = self._prepare_inputs(inputs)
-
+        print(f"inputs shape: {[(key, inputs[key].shape) for key in inputs]}")
         if is_sagemaker_mp_enabled():
             loss_mb = smp_forward_backward(
                 model, inputs, self.args.gradient_accumulation_steps
             )
             return loss_mb.reduce_mean().detach().to(self.args.device)
-
+        print("computing loss")
         with self.compute_loss_context_manager():
             loss = self.compute_loss(model, inputs)
 
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
-
+        print("before backward")
         if self.use_apex:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
             self.accelerator.backward(loss)
-
+        print("after backward")
         selected_module_names = ["vision_tower"]
         # if self.args.unfreeze_mm_vision_tower:
         #     reduce_gradients(self.optimizer, self.param_to_name, selected_module_names)
         final_loss = loss.detach() / self.args.gradient_accumulation_steps
+        print(f"final loss: {final_loss}")
         return final_loss
 
     def create_optimizer(self):
