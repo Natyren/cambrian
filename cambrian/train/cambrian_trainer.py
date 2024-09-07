@@ -20,7 +20,6 @@ from transformers.trainer import (
     has_length,
     ALL_LAYERNORM_LAYERS,
     logger,
-    is_torch_tpu_available,
 )
 
 from ezcolorlog import root_logger as logger
@@ -825,7 +824,7 @@ class CambrianTrainer(Trainer):
             self.control.should_log
             and self.state.global_step > self._globalstep_last_logged
         ):
-            if is_torch_tpu_available():
+            if True:
                 import torch_xla.core.xla_model as xm
 
                 xm.mark_step()
