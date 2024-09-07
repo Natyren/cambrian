@@ -288,7 +288,9 @@ class CambrianTrainer(Trainer):
         model.train()
         print("before prepare inputs")
         inputs = self._prepare_inputs(inputs)
-        print(f"inputs shape: {[(key, inputs[key].shape) for key in inputs]}")
+        print(
+            f"inputs shape: {[(key, inputs[key].shape if isinstance(inputs[key], torch.Tensor) else len(inputs[key])) for key in inputs]}"
+        )
         if is_sagemaker_mp_enabled():
             loss_mb = smp_forward_backward(
                 model, inputs, self.args.gradient_accumulation_steps
